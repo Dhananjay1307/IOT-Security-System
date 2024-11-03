@@ -1,0 +1,140 @@
+/* Comment this out to disable prints and save space */
+#define CORE_0 0
+#define CORE_1 1
+
+TaskHandle_t taskSendSensor, taskSpin;
+
+#define BLYNK_PRINT Serial
+#define LED_PIN 19
+
+/* Fill in information from Blynk Device Info here */
+#define BLYNK_TEMPLATE_ID           "TMPxxxxxx"
+#define BLYNK_TEMPLATE_NAME         "ESP32"
+#define BLYNK_AUTH_TOKEN            "HqRnzwSxTvgkD-eVrh1tT0gZAHvOCkBs"
+
+#include <WiFi.h>
+#include <WiFiClient.h>
+#include <BlynkSimpleEsp32.h>
+
+#include <Servo_ESP32.h>
+
+#define trig 4 // Replace with the correct GPIO pin number for the trigger pin
+#define echo 2 // Replace with the correct GPIO pin number for the echo pin
+
+
+long duration;
+int distance;
+
+static const int servoPin = 18; //printed G14 on the board
+
+Servo_ESP32 servo1;
+
+int angle =0;
+int angleStep = 4;
+
+int angleMin =0;
+int angleMax = 180;
+
+char auth[] = "HqRnzwSxTvgkD-eVrh1tT0gZAHvOCkBs"; // Use the BLYNK_AUTH_TOKEN you defined
+
+// Your WiFi credentials.
+// Set the password to "" for open networks.
+char ssid[] = "Amshu GT 2";
+char pass[] = "Amshu@399";
+
+BlynkTimer timer;
+
+WidgetLCD lcd(V1);
+int NM = 0; 
+
+void setup()
+{
+  pinMode(trig, OUTPUT);  // Sets the trigPin as an Output
+  pinMode(echo, INPUT); 
+  pinMode(LED_PIN, OUTPUT);  // Sets the echoPin as an Input
+  Serial.begin(9600);
+
+  servo1.attach(servoPin);
+
+  Blynk.begin(auth, ssid, pass,IPAddress(117,236,190,213),8080); // Change the IP address to "blynk-cloud.com" and remove IPAdress
+
+  
+    xTaskCreatePinnedToCore(
+      sendSensor,      // Function to execute
+      "TaskSendSensor",// Name of the task
+      10000,           // Stack size (bytes)
+      NULL,            // Parameters to pass to the function
+      1,               // Priority of the task
+      &taskSendSensor, // Task handle
+      CORE_0);         // Core to run the task (CORE_0 or CORE_1)
+
+  xTaskCreatePinnedToCore(
+      spin,            // Function to execute
+      "TaskSpin",      // Name of the task
+      10000,           // Stack size (bytes)
+      NULL,            // Parameters to pass to the function
+      1,               // Priority of the task
+      &taskSpin,       // Task handle
+      CORE_1);         // Core to run the task (CORE_0 or CORE_1)
+
+}
+
+void loop()
+{
+  Blynk.run();
+  delay(1000);
+}
+void sendSensor(void *pvParameters) {
+  while (true) {
+    // Code for the sendSensor function
+
+    digitalWrite(trig, LOW);
+    delayMicroseconds(2);
+    digitalWrite(trig, HIGH);
+    delayMicroseconds(10);
+    digitalWrite(trig, LOW);
+    duration = pulseIn(echo, HIGH);
+    distance = duration * 0.034 / 2;
+
+    Serial.print("Distance = ");
+    Serial.println(distance);
+
+    Blynk.virtualWrite(V0, distance);
+
+    if (distance < 30) {
+    digitalWrite(LED_PIN, HIGH); // Turn ON the LED
+    
+  } else {
+    digitalWrite(LED_PIN, LOW); // Turn OFF the LED
+    
+  }
+
+    lcd.print(0, 0, "Distance: " + String(distance) + "cm ");
+
+    vTaskDelay(100 / portTICK_PERIOD_MS); // Adjust delay based on your requirements
+  }
+}
+
+BLYNK_WRITE(V5) {
+  NM = param.asInt(); // Update NM variable when V5 is written
+}
+
+void spin(void *pvParameters) {
+  while (true) {
+    if (NM == 1) {
+      for (int angle = 0; angle <= angleMax; angle += angleStep) {
+        servo1.write(angle);
+        delay(40);
+      }
+
+      for (int angle = 180; angle >= angleMin; angle -= angleStep) {
+        servo1.write(angle);
+        delay(40);
+      }
+
+      vTaskDelay(300 / portTICK_PERIOD_MS); // Adjust delay based on your requirements
+    } else {
+      servo1.write(NM);
+    }
+  }
+}
