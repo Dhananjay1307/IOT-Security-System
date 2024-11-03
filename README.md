@@ -1,2 +1,2 @@
 # IOT-Security-System
-Custom control Intuition Detection System
+Custom control Intrution Detection System
